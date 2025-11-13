@@ -1,20 +1,19 @@
 # filename: sqfx_feed.py
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify
 import yfinance as yf
 import time
 
 app = Flask(__name__)
 
-# ─────────────── CONFIG ───────────────
-API_KEY = "ShadowQuantFX_Private_Key_2025"  # optional: restrict access
+# ───────── CONFIG ─────────
 categories = {
-    "Stocks": ["AAPL", "MSFT", "GOOG", "TSLA"],
-    "Indices": ["^GSPC", "^IXIC"],
+    "Indices": ["^GSPC", "^IXIC"],  # S&P 500, NASDAQ
     "Forex": ["EURUSD=X", "GBPUSD=X", "USDJPY=X"]
 }
+
 latest_data = {}
 
-# ─────────────── CORE ───────────────
+# ───────── FETCHER ─────────
 def fetch_all_prices():
     snapshot = {}
     for group, symbols in categories.items():
@@ -31,14 +30,7 @@ def fetch_all_prices():
     snapshot["timestamp"] = time.strftime("%Y-%m-%d %H:%M:%S")
     return snapshot
 
-@app.before_request
-def auth_check():
-    if request.path in ["/", "/health"]:
-        return
-    key = request.headers.get("X-API-Key")
-    if key != API_KEY:
-        return jsonify({"error": "Unauthorized"}), 401
-
+# ───────── ROUTES ─────────
 @app.route("/")
 def home():
     return jsonify({
@@ -53,7 +45,14 @@ def health():
 
 @app.route("/prices", methods=["GET"])
 def prices():
-    return jsonify(fetch_all_prices())
+    # always refresh data before returning
+    global latest_data
+    latest_data = fetch_all_prices()
+    return jsonify(latest_data)
 
+# ───────── STARTUP ─────────
 if __name__ == "__main__":
+    print("🚀 Starting ShadowQuantFX Cloud API...")
+    # fetch once immediately at startup
+    latest_data = fetch_all_prices()
     app.run(host="0.0.0.0", port=5000)
